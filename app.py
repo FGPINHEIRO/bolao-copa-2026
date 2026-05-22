@@ -4,11 +4,7 @@ import hashlib
 import os
 
 # ── Configuração da página ────────────────────────────────────────────────────
-st.set_page_config(
-    page_title="Bolão Copa 2026",
-    page_icon="⚽",
-    layout="wide",
-)
+st.set_page_config(page_title="Bolão Copa 2026", page_icon="⚽", layout="wide")
 
 # ── Supabase ──────────────────────────────────────────────────────────────────
 @st.cache_resource
@@ -26,7 +22,8 @@ def hash_senha(senha: str) -> str:
 
 def login(nome: str, senha: str):
     try:
-        # A função agora tenta logar e reporta o erro específico se falhar
+        # A função tenta acessar a tabela. Se o erro PGRST125 persistir, 
+        # verifique no Table Editor do Supabase se a tabela se chama 'usuarios'
         resp = supabase.table("usuarios").select("*").eq("nome", nome).execute()
         
         if resp.data:
@@ -35,13 +32,12 @@ def login(nome: str, senha: str):
                 return u
         return None
     except Exception as e:
-        # Exibe o erro técnico na tela para sabermos o que está acontecendo
-        st.error(f"Erro ao acessar banco de dados: {str(e)}")
+        st.error(f"Erro ao acessar tabela 'usuarios': {str(e)}")
         return None
 
 def cadastrar(nome: str, senha: str):
     try:
-        # Verifica se o usuário já existe
+        # Verifica duplicidade
         check = supabase.table("usuarios").select("nome").eq("nome", nome).execute()
         if check.data:
             return "existe"
@@ -54,9 +50,9 @@ def cadastrar(nome: str, senha: str):
         }).execute()
         return "sucesso"
     except Exception as e:
-        return f"Erro de banco: {str(e)}"
+        return f"Erro ao inserir na tabela 'usuarios': {str(e)}"
 
-# ── Lógica de interface ───────────────────────────────────────────────────────
+# ── Lógica ────────────────────────────────────────────────────────────────────
 if "usuario" not in st.session_state:
     st.session_state.usuario = None
 
@@ -73,7 +69,7 @@ if st.session_state.usuario is None:
                 if u:
                     st.session_state.usuario = u
                     st.rerun()
-                elif u is None:
+                elif u is None and not st.session_state.get("erro_banco"):
                     st.error("Usuário ou senha incorretos.")
                     
     with tab2:
@@ -95,4 +91,4 @@ else:
         st.rerun()
     st.write("---")
     st.write("### Área do Bolão")
-    st.write("Navegue pelas abas para fazer palpites e ver o ranking.")
+    st.write("Você acessou o sistema com sucesso!")
