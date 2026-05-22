@@ -3,9 +3,6 @@ import streamlit as st
 from supabase import create_client, Client
 import hashlib
 import os
-from dotenv import load_dotenv
-
-load_dotenv()
 
 # ── Configuração da página ────────────────────────────────────────────────────
 st.set_page_config(
@@ -18,8 +15,9 @@ st.set_page_config(
 # ── Supabase ──────────────────────────────────────────────────────────────────
 @st.cache_resource
 def get_supabase() -> Client:
-    url  = os.environ.get("SUPABASE_URL", st.secrets.get("SUPABASE_URL", ""))
-    key  = os.environ.get("SUPABASE_KEY", st.secrets.get("SUPABASE_KEY", ""))
+    # Busca chaves diretamente dos secrets do Streamlit
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
     return create_client(url, key)
 
 supabase = get_supabase()
@@ -38,14 +36,21 @@ def login(nome: str, senha: str):
 
 def cadastrar(nome: str, senha: str):
     try:
+        # Verifica se o usuário já existe antes de tentar inserir
+        check = supabase.table("usuarios").select("nome").eq("nome", nome).execute()
+        if check.data:
+            return None # Usuário já existe
+        
         is_admin = nome.lower() == "admin"
         resp = supabase.table("usuarios").insert({
             "nome": nome,
             "senha_hash": hash_senha(senha),
             "is_admin": is_admin,
         }).execute()
-        return resp.data[0] if resp.data else None
+        
+        return resp.data[0] if resp.data else True
     except Exception as e:
+        st.error(f"Erro no banco: {e}")
         return None
 
 # ── Session state ─────────────────────────────────────────────────────────────
@@ -97,19 +102,22 @@ def pagina_login():
                 else:
                     u = cadastrar(novo_nome.strip(), nova_senha)
                     if u:
-                        st.success("Conta criada! Faça login.")
+                        st.success("Conta criada! Pode entrar na aba Entrar.")
                     else:
-                        st.error("Nome de usuário já existe.")
+                        st.error("Nome de usuário já existe ou erro no banco.")
 
-# ── Sidebar para usuário logado ───────────────────────────────────────────────
+# ── Sidebar ──────────────────────────────────────────────────────────────────
 def sidebar_nav():
     with st.sidebar:
-        st.markdown(f"### 👤 {st.session_state.usuario['nome']}")
-        st.caption("Copa do Mundo 2026")
-        st.divider()
-        if st.button("🚪 Sair", use_container_width=True):
-            st.session_state.usuario = None
-            st.rerun()
+        if st.session_state.usuario:
+            st.markdown(f"### 👤 {st.session_state.usuario['nome']}")
+            if st.session_state.usuario.get("is_admin"):
+                st.success("Administrador")
+            st.caption("Copa do Mundo 2026")
+            st.divider()
+            if st.button("🚪 Sair", use_container_width=True):
+                st.session_state.usuario = None
+                st.rerun()
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 if st.session_state.usuario is None:
